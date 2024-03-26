@@ -344,6 +344,13 @@ pub struct Range<T> {
     start: (u32, u32),
     end: (u32, u32),
     inner: Vec<T>,
+    row_attributes: Option<Vec<RowAttributes>>,
+}
+
+#[allow(missing_docs)]
+#[derive(Clone, Debug, Default)]
+pub struct RowAttributes {
+    pub outline_level: Option<u8>,
 }
 
 impl<T: CellType> Range<T> {
@@ -361,6 +368,7 @@ impl<T: CellType> Range<T> {
             start,
             end,
             inner: vec![T::default(); ((end.0 - start.0 + 1) * (end.1 - start.1 + 1)) as usize],
+            row_attributes: None,
         }
     }
 
@@ -371,6 +379,7 @@ impl<T: CellType> Range<T> {
             start: (0, 0),
             end: (0, 0),
             inner: Vec::new(),
+            row_attributes: None,
         }
     }
 
@@ -437,7 +446,10 @@ impl<T: CellType> Range<T> {
     ///
     /// panics when a `Cell` row is lower than the first `Cell` row or
     /// bigger than the last `Cell` row.
-    pub fn from_sparse(cells: Vec<Cell<T>>) -> Range<T> {
+    pub fn from_sparse(
+        cells: Vec<Cell<T>>,
+        row_attributes: Option<Vec<RowAttributes>>,
+    ) -> Range<T> {
         if cells.is_empty() {
             Range::empty()
         } else {
@@ -469,6 +481,7 @@ impl<T: CellType> Range<T> {
                 start: (row_start, col_start),
                 end: (row_end, col_end),
                 inner: v,
+                row_attributes,
             }
         }
     }
@@ -616,6 +629,11 @@ impl<T: CellType> Range<T> {
                 inner: Some(self.inner.chunks(width)),
             }
         }
+    }
+
+    #[allow(missing_docs)]
+    pub fn row_attributes(&self) -> Option<&[RowAttributes]> {
+        self.row_attributes.as_deref()
     }
 
     /// Get an iterator over used cells only

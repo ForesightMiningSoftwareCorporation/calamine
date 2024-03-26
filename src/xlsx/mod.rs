@@ -809,21 +809,39 @@ impl<RS: Read + Seek> Xlsx<RS> {
         let mut cell_reader = self.worksheet_cells_reader(name)?;
         let len = cell_reader.dimensions().len();
         let mut cells = Vec::new();
+        let mut row_attributes = Vec::new();
         if len < 100_000 {
             cells.reserve(len as usize);
         }
+
+        // HACK: track when row changes. It would be cleaner to give the cell
+        // reader a "next_row" API.
+        let mut current_row = None;
+
         loop {
             match cell_reader.next_cell() {
                 Ok(Some(Cell {
                     val: DataRef::Empty,
+                    pos,
                     ..
-                })) => (),
-                Ok(Some(cell)) => cells.push(cell),
+                })) => {
+                    if Some(pos.0) != current_row {
+                        current_row = Some(pos.0);
+                        row_attributes.push(cell_reader.row_attributes());
+                    }
+                }
+                Ok(Some(cell)) => {
+                    if Some(cell.pos.0) != current_row {
+                        current_row = Some(cell.pos.0);
+                        row_attributes.push(cell_reader.row_attributes());
+                    }
+                    cells.push(cell);
+                }
                 Ok(None) => break,
                 Err(e) => return Err(e),
             }
         }
-        Ok(Range::from_sparse(cells))
+        Ok(Range::from_sparse(cells, Some(row_attributes)))
     }
 }
 
@@ -870,12 +888,18 @@ impl<RS: Read + Seek> Reader<RS> for Xlsx<RS> {
     }
 
     fn worksheet_range(&mut self, name: &str) -> Result<Range<Data>, XlsxError> {
-        let rge = self.worksheet_range_ref(name)?;
-        let inner = rge.inner.into_iter().map(|v| v.into()).collect();
-        Ok(Range {
-            start: rge.start,
-            end: rge.end,
+        let Range {
+            start,
+            end,
             inner,
+            row_attributes,
+        } = self.worksheet_range_ref(name)?;
+        let inner = inner.into_iter().map(|v| v.into()).collect();
+        Ok(Range {
+            start,
+            end,
+            inner,
+            row_attributes,
         })
     }
 
@@ -891,7 +915,7 @@ impl<RS: Read + Seek> Reader<RS> for Xlsx<RS> {
                 cells.push(cell);
             }
         }
-        Ok(Range::from_sparse(cells))
+        Ok(Range::from_sparse(cells, None))
     }
 
     fn worksheets(&mut self) -> Vec<(String, Range<Data>)> {
@@ -1045,6 +1069,12 @@ fn get_row_and_optional_column(range: &[u8]) -> Result<(u32, Option<u32>), XlsxE
         .checked_sub(1)
         .ok_or(XlsxError::RangeWithoutRowComponent)?;
     Ok((row, col.checked_sub(1)))
+}
+
+fn get_outline_level(range: &[u8]) -> Result<u8, XlsxError> {
+    let s = std::str::from_utf8(range)
+        .map_err(|e| XlsxError::Xml(quick_xml::Error::NonDecodable(Some(e))))?;
+    Ok(s.parse()?)
 }
 
 /// attempts to read either a simple or richtext string

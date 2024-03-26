@@ -4,12 +4,13 @@ use quick_xml::{
 };
 
 use super::{
-    get_attribute, get_dimension, get_row, get_row_column, read_string, Dimensions, XlReader,
+    get_attribute, get_dimension, get_outline_level, get_row, get_row_column, read_string,
+    Dimensions, XlReader,
 };
 use crate::{
     datatype::DataRef,
     formats::{format_excel_f64_ref, CellFormat},
-    Cell, XlsxError,
+    Cell, RowAttributes, XlsxError,
 };
 
 /// An xlsx Cell Iterator
@@ -21,6 +22,7 @@ pub struct XlsxCellReader<'a> {
     dimensions: Dimensions,
     row_index: u32,
     col_index: u32,
+    row_attributes: RowAttributes,
     buf: Vec<u8>,
     cell_buf: Vec<u8>,
 }
@@ -66,6 +68,7 @@ impl<'a> XlsxCellReader<'a> {
             dimensions,
             row_index: 0,
             col_index: 0,
+            row_attributes: Default::default(),
             buf: Vec::with_capacity(1024),
             cell_buf: Vec::with_capacity(1024),
         })
@@ -73,6 +76,10 @@ impl<'a> XlsxCellReader<'a> {
 
     pub(crate) fn dimensions(&self) -> Dimensions {
         self.dimensions
+    }
+
+    pub(crate) fn row_attributes(&self) -> RowAttributes {
+        self.row_attributes.clone()
     }
 
     pub fn next_cell(&mut self) -> Result<Option<Cell<DataRef<'a>>>, XlsxError> {
@@ -86,6 +93,13 @@ impl<'a> XlsxCellReader<'a> {
                     if let Some(range) = attribute {
                         let row = get_row(range)?;
                         self.row_index = row;
+                    }
+                    let attribute =
+                        get_attribute(row_element.attributes(), QName(b"outlineLevel"))?;
+                    if let Some(range) = attribute {
+                        self.row_attributes.outline_level = Some(get_outline_level(range)?);
+                    } else {
+                        self.row_attributes.outline_level = None;
                     }
                 }
                 Ok(Event::End(ref row_element)) if row_element.local_name().as_ref() == b"row" => {

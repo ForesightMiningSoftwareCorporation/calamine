@@ -450,8 +450,9 @@ impl<RS: Read + Seek> Xls<RS> {
                     _ => (),
                 }
             }
-            let range = Range::from_sparse(cells);
-            let formula = Range::from_sparse(formulas);
+            // TODO: XLS support for row attributes
+            let range = Range::from_sparse(cells, None);
+            let formula = Range::from_sparse(formulas, None);
             sheets.insert(name, (range, formula));
         }
 

@@ -483,7 +483,8 @@ impl<RS: Read + Seek> Reader<RS> for Xlsb<RS> {
                 cells.push(Cell::new(cell.pos, Data::from(cell.val)));
             }
         }
-        Ok(Range::from_sparse(cells))
+        // TODO: XLSB support for row attributes
+        Ok(Range::from_sparse(cells, None))
     }
 
     /// MS-XLSB 2.1.7.62
@@ -495,7 +496,7 @@ impl<RS: Read + Seek> Reader<RS> for Xlsb<RS> {
                 cells.push(cell);
             }
         }
-        Ok(Range::from_sparse(cells))
+        Ok(Range::from_sparse(cells, None))
     }
 
     /// MS-XLSB 2.1.7.62
